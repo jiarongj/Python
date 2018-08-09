@@ -1,0 +1,61 @@
+# #!/usr/bin/python
+# # -*- coding: UTF-8 -*-
+"""
+  @author:01378722
+"""
+import itertools
+
+import pandas as pd
+import numpy as np
+
+data = pd.read_excel('出库数据.xlsx',sheet_name=1)
+du = pd.DataFrame(data)
+finpool = du.sort_values(by=['单票最低运费','续重价格'])
+
+capcoln=finpool.loc[:,['始发地代码']]
+# capcoln.sort_values(by=['始发地代码'])
+caplist=list(set(capcoln['始发地代码'].tolist()))   #去重
+caplist.sort()
+print(caplist)       #从‘出库数据’中获得始发地省会城市序号的list: 21 beginning cities
+
+demcoln=finpool.loc[:,['目的地代码']]
+demcoln.sort_values(by=['目的地代码'])
+demlist=list(set(demcoln['目的地代码'].tolist()))   #去重
+demlist.sort()
+print(demlist)       #从‘出库数据’中获得目的地城市序号的list
+
+data1 = pd.read_excel('出库数据.xlsx', sheet_name=2)
+dv = pd.DataFrame(data1)
+evalupool = dv.sort_values(by=['单票最低运费','续重价格'])
+
+data2=pd.read_excel('出库数据.xlsx', sheet_name=4)
+dk=data2.loc[:, ['始发地代码','目的地代码','周均重量']]
+weight_pool = pd.DataFrame(dk)
+# print(weight_pool.head())
+
+min_total_cost = 10000000000000000
+for i in itertools.combinations(caplist,18):       # 从21个始发仓中筛选出18个仓库发货的情况
+    print(i)
+    # print(i[0])
+    j_sum = 0.00
+    for j in demlist:
+        dem_info_sec = weight_pool[weight_pool['目的地代码']==j]
+        dem_j_weight = dem_info_sec['周均重量'].values
+        j_price_sec = evalupool[evalupool['目的地']==j]
+        j_min_price = 10000000000000
+        for k in range(0,18):
+            rd_price = j_price_sec[j_price_sec['始发地']==i[k]]
+            bg_weight = rd_price['起始重量'].values
+            price_1 = rd_price['单票最低运费'].values
+            price_2 = rd_price['续重价格'].values
+            if dem_j_weight > bg_weight:
+                k_price = price_1 + price_2 * (dem_j_weight - bg_weight)
+            else:
+                k_price = price_1
+            if k_price < j_min_price:
+                j_min_price = k_price
+        j_sum += j_min_price
+    print('用',i,'仓库组合代替最初21个仓发货时，拥有的总成本最小值为：',j_sum)
+    if j_sum < min_total_cost:
+        min_total_cost = j_sum
+print('使总成本最小的方案为用',i,'仓库组合代替最初21个仓发货，最小的总成本为：',min_total_cost)
