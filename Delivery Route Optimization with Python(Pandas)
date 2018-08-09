@@ -1,0 +1,53 @@
+# #!/usr/bin/python
+# # -*- coding: UTF-8 -*-
+
+import pandas as pd    #data mining and analysis with data from a shoes branch_supply chain operations solution
+import numpy as np
+
+data = pd.read_excel('出库数据.xlsx',sheet_name=1)
+du = pd.DataFrame(data)
+finpool = du.sort_values(by=['单票最低运费','续重价格'])
+
+capcoln=finpool.loc[:, ['始发地代码']]
+capcoln.sort_values(by=['始发地代码'])
+caplist=capcoln['始发地代码'].drop_duplicates().values.tolist()      #去重
+print(caplist)       #从‘出库数据’中获得始发地省会城市序号的list: 21 beginning cities
+
+demcoln=finpool.loc[:, ['目的地代码']]
+demcoln.sort_values(by=['目的地代码'])
+demlist=demcoln['目的地代码'].drop_duplicates().values.tolist()      #去重
+print(demlist)       #从‘出库数据’中获得目的地城市序号的list
+
+data1 = pd.read_excel('出库数据.xlsx', sheet_name=2)
+dv = pd.DataFrame(data1)
+evalupool = dv.sort_values(by=['单票最低运费','续重价格'])     #调取（发到A地的）被取缔仓（在B地）待转移（到C地）的货物数量q,跟（发到A地的）替代发货仓（在C地）的运费报价相结合来计算转移后的成本；
+
+
+data2=pd.read_excel('出库数据.xlsx', sheet_name=4)
+dk=data2.loc[:, ['始发地代码','目的地代码','周均重量']]
+weight_pool = pd.DataFrame(dk)
+# print(weight_pool.head())
+
+for i in range(len(demlist)):
+    dest_weight = weight_pool[weight_pool['目的地代码']==demlist[i]]
+    current_weight = dest_weight['周均重量'].values
+    #print(current_weight)
+   # print(dest_weight)
+    min_price = [1000000000000000]
+    for j in range(len(caplist)):
+             route_end = evalupool[evalupool['目的地'] == demlist[i]]
+             route_cost = route_end[route_end['始发地'] == caplist[j]]
+             begin_weight = route_cost['起始重量'].values
+             # print(begin_weight)
+             lowest_price = route_cost['单票最低运费'].values
+             # print(lowest_price)
+             per_price = route_cost['续重价格'].values
+             if current_weight <= begin_weight:
+                   current_price = lowest_price
+             else:
+                   current_price = lowest_price + per_price*(current_weight - begin_weight)
+             if current_price < min_price:
+                min_price = current_price
+                current_supply = caplist[j]
+    current_dest = demlist[i]
+    print(current_supply, current_dest, min_price[0])
