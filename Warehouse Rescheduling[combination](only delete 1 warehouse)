@@ -1,0 +1,115 @@
+# #!/usr/bin/python
+# # -*- coding: UTF-8 -*-
+"""
+  @author:01378722
+"""
+import pandas as pd
+import numpy as np
+
+data = pd.read_excel('出库数据.xlsx',sheet_name=1)
+du = pd.DataFrame(data)
+finpool = du.sort_values(by=['单票最低运费','续重价格'])
+
+capcoln=finpool.loc[:, ['始发地代码']]
+capcoln.sort_values(by=['始发地代码'])
+caplist=capcoln['始发地代码'].drop_duplicates().values.tolist()      #去重
+print(caplist)       #从‘出库数据’中获得始发地省会城市序号的list: 21 beginning cities
+
+demcoln=finpool.loc[:, ['目的地代码']]
+demcoln.sort_values(by=['目的地代码'])
+demlist=demcoln['目的地代码'].drop_duplicates().values.tolist()      #去重
+print(demlist)       #从‘出库数据’中获得目的地城市序号的list
+
+data1 = pd.read_excel('出库数据.xlsx', sheet_name=2)
+dv = pd.DataFrame(data1)
+evalupool = dv.sort_values(by=['单票最低运费','续重价格'])
+
+data2=pd.read_excel('出库数据.xlsx', sheet_name=4)
+dk=data2.loc[:, ['始发地代码','目的地代码','周均重量']]
+weight_pool = pd.DataFrame(dk)
+# print(weight_pool.head())
+
+for i in caplist:
+    cap_section = weight_pool[weight_pool['始发地代码']==i]
+    i_destlist=list(cap_section['目的地代码'].tolist())
+    i_sum_oricost = 0.00
+    # print(i_destlist)     # 输出当前每个始发仓覆盖的目的地代码
+    j_sum_mincost = 0.00
+    for j in i_destlist:
+        selected_candidate_info = evalupool[evalupool['目的地']==j]
+        # print(selected_candidate_info.head())
+        selected_ori_info = selected_candidate_info[selected_candidate_info['始发地']==i]
+        ori_quant = selected_ori_info['起始重量'].values
+        ori_price1 = selected_ori_info['单票最低运费'].values
+        ori_price2 = selected_ori_info['续重价格'].values
+        quant_prep = cap_section[cap_section['目的地代码']==j]
+        current_quant = quant_prep['周均重量'].values
+        i_sum_oricost = 0.00
+        if current_quant>ori_quant:
+            ori_cost_plus = ori_price1 + ori_price2 * (current_quant-ori_quant)
+        else:
+            ori_cost_plus = ori_price1
+        i_sum_oricost += ori_cost_plus
+        k_mincost = 1000000000000
+        for k in caplist:
+           # dest_section = evalupool[evalupool['目的地']==cap_section['目的地代码']]
+           selected_candidate_info = selected_candidate_info[selected_candidate_info['始发地']==k]
+           current_oriquant = selected_candidate_info['起始重量'].values
+           current_price1 = selected_candidate_info['单票最低运费'].values
+           current_price2 = selected_candidate_info['续重价格'].values
+           if current_quant>current_oriquant:
+               candidate_price = current_price1 + current_price2 * (current_quant - current_oriquant)
+           else:
+               candidate_price = current_price1
+           if candidate_price<k_mincost:
+               k_mincost = candidate_price
+        j_sum_mincost += k_mincost
+    print('被取消仓为',i,'时,增加的最小费用为：',(j_sum_mincost - i_sum_oricost))
+
+# Output:
+# [371, 595, 28, 451, 23, 27, 532, 10, 29, 24, 431, 571, 411, 20, 25, 755, 7311, 871, 898, 21, 991]
+# [377, 379, 396, 370, 371, 373, 374, 375, 378, 391, 393, 394, 395, 398, 376, 596, 592, 593, 594, 595, 591, 28, 816, 817, 818, 825, 830, 831, 833, 834, 838, 453, 459, 23, 451, 452, 454, 458, 464, 455, 467, 468, 469, 717, 719, 27, 710, 711, 716, 724, 728, 539, 531, 543, 22, 533, 534, 537, 546, 631, 635, 917, 29, 530, 532, 535, 536, 633, 911, 415, 24, 412, 414, 416, 417, 418, 419, 421, 427, 429, 431, 432, 433, 434, 435, 436, 437, 438, 439, 570, 571, 572, 573, 576, 577, 574, 575, 578, 579, 580, 411, 20, 25, 513, 514, 515, 663, 759, 510, 511, 512, 516, 517, 518, 519, 523, 527, 750, 752, 755, 756, 757, 760, 769, 736, 7313, 730, 734, 7311, 319, 311, 871, 872, 874, 877, 879, 312, 313, 316, 335, 873, 898, 8981, 315, 310, 561, 551, 553, 558, 10, 21, 931, 937, 351, 352, 353, 354, 356, 357, 791, 797, 951, 971, 851, 52, 858, 771, 772, 773, 991, 994, 996, 476]
+# 被取消仓为 371 时,增加的最小费用为： [4263.21525]
+# 被取消仓为 595 时,增加的最小费用为： [2314.0565]
+# 被取消仓为 28 时,增加的最小费用为： [14307.7305]
+# 被取消仓为 451 时,增加的最小费用为： [3729.645]
+# 被取消仓为 23 时,增加的最小费用为： [1882.9345]           重庆
+# 被取消仓为 27 时,增加的最小费用为： [3276.862]
+# 被取消仓为 532 时,增加的最小费用为： [8513.68225]
+# 被取消仓为 10 时,增加的最小费用为： [9491.53825]
+# 被取消仓为 29 时,增加的最小费用为： [3180.7945]
+# 被取消仓为 24 时,增加的最小费用为： [2802.155]
+# 被取消仓为 431 时,增加的最小费用为： [2185.11]
+# 被取消仓为 571 时,增加的最小费用为： [7823.56925]
+# 被取消仓为 411 时,增加的最小费用为： [159.04]          大连
+# 被取消仓为 20 时,增加的最小费用为： [4683.78125]
+# 被取消仓为 25 时,增加的最小费用为： [7378.467]
+# 被取消仓为 755 时,增加的最小费用为： [1949.92]         深圳
+# 被取消仓为 7311 时,增加的最小费用为： [2688.316]
+# 被取消仓为 871 时,增加的最小费用为： [7197.25375]
+# 被取消仓为 898 时,增加的最小费用为： [4012.4825]
+# 被取消仓为 21 时,增加的最小费用为： [992.0375]         上海
+# 被取消仓为 991 时,增加的最小费用为： [-130.]           乌鲁木齐（考虑取消掉的仓）
+
+# Appendix【response to command ’print(i_destlist)’】获得原来每个始发仓所覆盖的目的地代码
+# [351, 352, 353, 354, 356, 357, 370, 371, 373, 374, 375, 376, 377, 378, 379, 391, 393, 394, 395, 396, 398]
+# [591, 592, 593, 594, 595, 596, 791, 797]
+# [28, 816, 817, 818, 825, 830, 831, 833, 834, 838]
+# [451, 452, 453, 454, 455, 458, 459, 464, 467, 468, 469]
+# [23]
+# [27, 710, 711, 716, 717, 719, 724, 728]
+# [530, 531, 532, 533, 534, 535, 536, 537, 539, 543, 546, 631, 633, 635]
+# [10, 22, 310, 311, 312, 313, 315, 316, 319, 335]
+# [29, 911, 917, 931, 937, 951, 971, 991, 994, 996]
+# [24, 412, 414, 415, 416, 417, 418, 419, 421, 427, 429]
+# [431, 432, 433, 434, 435, 436, 437, 438, 439]
+# [570, 571, 572, 573, 574, 575, 576, 577, 578, 579, 580]
+# [411]
+# [20, 663, 750, 752, 756, 757, 759, 760, 769]
+# [25, 510, 511, 512, 513, 514, 515, 516, 517, 518, 519, 523, 527, 551, 553, 558, 561]
+# [755]
+# [730, 734, 736, 7311, 7313]
+# [52, 771, 772, 773, 851, 858, 871, 872, 873, 874, 877, 879]
+# [898, 8981]
+# [21]
+# [476]
