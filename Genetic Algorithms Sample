@@ -1,0 +1,338 @@
+# -*- coding: utf-8 -*-
+
+import pandas as pd
+import numpy as np
+import os
+import itertools
+import time
+import math
+import sys
+import csv
+from GA import GA
+from copy import deepcopy
+
+#reload(sys)
+#sys.setdefaultencoding('utf8')
+
+os.chdir("D:\\work\\Warehouse\\SKII\\")
+
+# output files contained in this directory
+out_dir = "D:\\work\\Warehouse\\SKII\\TestOutput\\"
+
+#from sqlalchemy import create_engine
+#engine = create_engine("mysql+mysqlconnector://root:123456@10.202.12.66:3306/test?charset=utf8")
+
+class WH_MODEL(object):
+    def __init__(self):
+        # source_wh is the source warehouse, to do with the transfer
+        self.source_wh = list([])
+        self.unit_transfer_cost = 2
+        self.unit_storage_cost = 3
+        self.unit_operation_cost = 3
+        self.safe_storage_period = 2
+        self.transfer_period = 7
+        self.warehouse_must = [531]
+        print ("warehouse_must",self.warehouse_must)
+        # print (type(self.warehouse_must))
+        self.epsilon = 0.001
+        self.popsize = 40
+        self.all_result = []
+        self.all_result_names = 'wh_num,num_ticket,transfer_cost,storage_cost,delivery_cost_with_discount,avg_cost,avg_delivery_day\n'
+        self.iter_num_preset = 100
+        self.num_wh_threshold = 2 # the number of warehouse-to-pick with warehouse_must excluded
+        self.flag = 'time'        # to minimize 'time' or 'cost'
+        self.discount = 1.0
+        self.num_wh_min = 10
+        self.num_wh_max = 15
+#         self.warehouse_info = self.get_warehouse_info()
+        self.ticket_info = self.get_ticket_info()
+        self.valid_warehouses = set([10,20,21,22,23,24,25,27,28,29,311,371,411,510,512,513,517,519,531,532,536,571,572,573,574,575,576,579,592,752,755,757,760,769,791,851,7311,750,312])
+        # self.valid_warehouses = set([24,411,412,414,415,416,417,418,419,421,427,429,431,432,433,434,435,436,437,438,439,451,452,453,454,455,456,457,458,459,464,467,468,469])
+        self.wh_city_time_cost = self.get_wh2city_time_cost()
+        # warehouse_pool, the set of valid warehouse candidates with order
+        self.warehouse_pool = self.get_warehouse_pool(self.valid_warehouses)
+        self.warehouse_pool_backup = deepcopy(self.warehouse_pool)
+
+    def get_ticket_info(self):
+        ticket_info = pd.read_csv("sk2.csv",encoding="gb2312")
+        ticket_info.columns = ['DEST_CITY','CITY_CODE', 'NUM_PACK', 'WEIGHT']
+
+        return ticket_info
+
+    def get_wh2city_time_cost(self):
+        wh_city_time_cost = pd.read_csv('t4_end.csv', encoding="gb2312")
+        wh_city_time_cost.columns = ['START_CODE','DEST_CODE','DELIVERY_DAY','START_PROVINCE','DEST_PROVINCE','L1_PRICE','L2_PRICE']
+        wh_city_time_cost.drop_duplicates(inplace=True)
+        wh_city_time_cost = wh_city_time_cost.dropna(axis=0)
+
+        return wh_city_time_cost
+
+    def get_warehouse_pool(self, valid_wh):
+        # maintain the order of valid warehouses
+        arrangement_with_all_whs = self.get_best_arrangement(self.valid_warehouses)
+        order = arrangement_with_all_whs.groupby('START_CODE')['NUM_PACK'].sum()
+        order = order.reset_index()
+        order.columns = ['START_WH', 'PACK_COUNT']
+        order.sort_values(by = 'PACK_COUNT', ascending =False, inplace = True)
+        wh_order = order['START_WH'].tolist()
+        tvw = list(self.valid_warehouses)
+        for i in wh_order:
+            tvw.remove(i)
+        return (wh_order + tvw)
+
+
+    def get_best_wh(self, warehouse_candidates):
+        wh_city_time_cost_within_whcand = self.wh_city_time_cost[(self.wh_city_time_cost['START_CODE']).astype('int').isin(warehouse_candidates)]
+        # choose the warehouses with minimun time or minimun delivery_cost, nothing to do with saledata
+        # to choose by minimun time
+        if self.flag == 'time':
+            wh_city_time_cost_within_whcand = wh_city_time_cost_within_whcand.sort_values(by=['DEST_CODE', 'DELIVERY_DAY', 'L1_PRICE', 'L2_PRICE'], ascending=True)
+        # to choose by minimun delivery cost
+        elif self.flag == 'cost':
+            wh_city_time_cost_within_whcand = wh_city_time_cost_within_whcand.sort_values(by=['DEST_CODE', 'L1_PRICE', 'L2_PRICE', 'DELIVERY_DAY'], ascending=True)
+        else:
+            sys.exit(0)
+
+        def ranker(dftmp):
+            dftmp['d_ranker'] = (np.arange(len(dftmp)) + 1)
+            return dftmp
+        grouped = wh_city_time_cost_within_whcand.groupby('DEST_CODE')
+        tmp = grouped.apply(ranker)
+        wh_city_time_cost_within_whcand = tmp
+#        print "kimshin",len(wh_city_time_cost_within_whcand)
+
+        best_route = wh_city_time_cost_within_whcand.loc[1 == wh_city_time_cost_within_whcand['d_ranker']]
+        best_route = best_route[['DEST_CODE', 'START_CODE', 'DELIVERY_DAY', 'L1_PRICE', 'L2_PRICE']]
+        return best_route
+
+    def get_best_arrangement(self, sol_cand):
+        best_route = self.get_best_wh(sol_cand)
+        ticket_best_route = pd.merge(self.ticket_info, best_route, left_on='CITY_CODE', right_on='DEST_CODE', how='inner')
+        if (ticket_best_route[ticket_best_route.CITY_CODE != ticket_best_route.DEST_CODE]).empty:
+            del ticket_best_route['CITY_CODE']
+        pd.to_numeric(ticket_best_route['NUM_PACK'])
+        pd.to_numeric(ticket_best_route['L2_PRICE'])
+        pd.to_numeric(ticket_best_route['L1_PRICE'])
+        return ticket_best_route
+
+    def get_storage_cost(self, ticket_best_route, unit_storage_cost):
+        wh_storage = ticket_best_route.groupby('START_CODE')['NUM_PACK'].sum()
+        storage_cost = self.safe_storage_period / self.transfer_period * sum(wh_storage * unit_storage_cost)
+        if self.transfer_period > 60:
+            storage_cost= sum(unit_storage_cost * wh_storage) / 2 * self.transfer_period
+        # operation cost + over-weight storage cost
+        storage_cost += sum(ticket_best_route.NUM_PACK)* self.unit_operation_cost + (sum(ticket_best_route[ticket_best_route['WEIGHT'] > 15].NUM_PACK)) * 2
+        return storage_cost
+
+    def get_transfer_cost(self, ticket_best_route, sol_cand, unit_transfer_cost):
+        total_transfer_cost = unit_transfer_cost * (ticket_best_route.loc[~(ticket_best_route.START_CODE.isin(self.source_wh)), 'NUM_PACK'].sum())
+        return total_transfer_cost
+
+    def get_delivery_cost(self, ticket_best_route):
+        return ((np.ceil(
+                ticket_best_route.WEIGHT - 1) * ticket_best_route.L2_PRICE + ticket_best_route.L1_PRICE) * ticket_best_route.NUM_PACK).sum()
+
+    def get_avg_delivery_day(self, ticket_best_route):
+        delivery_time = (ticket_best_route.DELIVERY_DAY * ticket_best_route.NUM_PACK).sum()
+        avg_delivery_time = delivery_time / ticket_best_route.NUM_PACK.sum()
+        return avg_delivery_time
+
+    def total_time_cost(self, sol_cand):
+        # warehouse_must is appended in eval_cand; warehouse_must has been included in sol_cand
+        ticket_best_route = self.get_best_arrangement(sol_cand)
+        result = -1
+        if self.flag=='time':
+            result = self.get_avg_delivery_day(ticket_best_route)
+        elif self.flag =='cost':
+            delivery_cost = self.get_delivery_cost(ticket_best_route)
+            storage_cost = self.get_storage_cost(ticket_best_route, self.unit_storage_cost)
+            transfer_cost = self.get_transfer_cost(ticket_best_route, sol_cand, self.unit_transfer_cost)
+            total_cost = self.discount * delivery_cost + transfer_cost + storage_cost
+#            total_cost = self.discount * delivery_cost +4
+            result = total_cost / ticket_best_route.NUM_PACK.sum()
+        else:
+            print ("flag should be time or cost")
+            sys.exit(0)
+        return float(result)
+
+    # fitness funtion, better one with higher score
+    def eval_cand(self, chromosome):
+        # chromosome is only warehouse-to-pick, no warehouse_must included
+        sol_cand = self.warehouse_must + chromosome
+        return (1.0 / self.total_time_cost(sol_cand))
+
+    def evolve(self, wh_num_preset, ga, iter_num):
+        while iter_num > 0:
+            print ("------------------------------------- Warehouses  %d  " % wh_num_preset)
+            avg_fitness = float(ga.bounds / ga.popsize)
+            if abs(avg_fitness-ga.best.score) < self.epsilon:
+                print (" < epsilon, reach the stopping condition")
+                break
+            # to check if self.domain is changed
+            a = set(ga.domain)
+            b = set(self.warehouse_pool)
+            c = a.difference(b)
+            if c:
+                print ('ga.domain != warehouse_pool')
+                sys.exit(0)
+            # print "\n---- BEFORE the ga.next(), the ga.best: ", ga.best.gene, ' ||  ', ga.best.score
+            bs1_s = ga.best.score
+            bs1_g = ga.best.gene
+            ga.next()
+            bs2_s = ga.best.score
+            bs2_g = ga.best.gene
+            if bs1_s == bs2_s:
+                if bs1_g != bs2_g:
+                    print ("best.gene has been changed during next!")
+                    print (bs1_g, ' || ', bs1_s)
+                    print (bs2_g, ' || ', bs2_s,)
+                    print ("whose score should be "),
+                    print (ga.matchFun(ga.best.gene))
+                    sys.exit(0)
+            # print "----  AFTER the ga.next(), the ga.best.score: ",  ga.best.gene, ' ||  ', ga.best.score
+            # print "recalculate ga.best.score, where best.gene may be changed! CHECK THIS!!!!!!!",
+            if ga.best.score != ga.matchFun(ga.best.gene):
+                print ("recalculate ga.best.score --> best.gene has been changed after .next()!")
+                sys.exit(0)
+            result = (1.0 / ga.best.score)
+            iter_num -= 1
+            print ("after %d iteration, best avg_result is %f " % (ga.generation, result), self.warehouse_must +ga.best.gene)
+        print ('** The end of iterations **')
+        print ('The best combo is ', (self.warehouse_must +ga.best.gene))
+        # save only the best solution
+        self.get_combo_detail(self.warehouse_must+ga.best.gene)
+        return 0
+
+    def check_one_combo(self, combo):
+        best_arrangement = self.get_best_arrangement(combo)
+        order = best_arrangement.groupby('START_CODE')['NUM_PACK'].sum()
+        order = order.reset_index()
+        order.columns = ['START_WH', 'PACK_COUNT']
+        order.sort_values(by='PACK_COUNT', ascending=False, inplace=True)
+
+    def get_combo_detail(self, combo):
+        best_arrangement = self.get_best_arrangement(combo)
+        delivery_cost = self.get_delivery_cost(best_arrangement)
+        delivery_cost_with_discount = self.discount * delivery_cost
+        num_ticket = best_arrangement['NUM_PACK'].sum()
+
+		# operation_cost = self.unit_operation_cost * num_ticket
+		# operation cost has been included in storage cost
+        storage_cost = self.get_storage_cost(best_arrangement, self.unit_storage_cost)
+        transfer_cost = self.get_transfer_cost(best_arrangement, combo, self.unit_transfer_cost)
+        total_cost = transfer_cost + storage_cost + delivery_cost_with_discount
+#        total_cost = 4 + delivery_cost_with_discount
+        avg_delivery_day = self.get_avg_delivery_day(best_arrangement)
+        avg_cost = total_cost / num_ticket
+
+        start_code = list(set(best_arrangement['START_CODE'].tolist()))
+		# self.all_result_names, 'wh_num,num_ticket,transfer_cost,storage_cost,delivery_cost_with_discount,avg_cost,avg_delivery_day\n'
+        self.all_result.append((len(combo), num_ticket, transfer_cost, storage_cost, delivery_cost_with_discount, avg_cost, avg_delivery_day))
+        # tickets arranged to each warehouse; needed in either time or cost preference; details_wh_numpack
+        # best_arrangement.to_csv(path_or_buf=(out_dir + str(len(combo)) + 'whs_details.csv'),encoding="gb2312",index=false)
+        best_arrangement['COM']=str(len(combo)) + str(start_code)
+        best_arrangement.to_csv(path_or_buf=(out_dir + str(len(combo)) + str(start_code) + 'whs_details.csv'),encoding="gb2312",index=False)
+#        pd.io.sql.to_sql(best_arrangement, "SKII_V4", engine, if_exists='append', index=True, chunksize=1000)
+
+        best_arrangement['times'] = best_arrangement['NUM_PACK'] * best_arrangement['DELIVERY_DAY']
+        print(start_code, best_arrangement['times'].sum() / best_arrangement['NUM_PACK'].sum())
+
+        print(best_arrangement.groupby('START_CODE').agg({'NUM_PACK': np.sum,'times': np.sum}))
+
+        details_wh_numpack = best_arrangement.groupby('START_CODE')['NUM_PACK'].sum()
+        details_wh_numpack = details_wh_numpack.reset_index()
+        details_wh_numpack.columns = ['START_WH', 'PACK_COUNT']
+        # details_wh_numpack.to_csv(path_or_buf=(out_dir + str(len(combo)) + 'whs_details_wh_numpack.csv'),encoding="gb2312")
+
+        details_main = best_arrangement.groupby(['START_CODE', 'DEST_CODE', 'DELIVERY_DAY'])['NUM_PACK'].sum()
+        details_main = details_main.reset_index()
+        # details_main.to_csv(path_or_buf= (out_dir + str(len(combo)) + 'whs_details_main.csv'),encoding="gb2312")
+
+        return 0
+
+    def enum_method(self, num_warehouse_to_pick):
+        print ("------------------------------------- Warehouses  %d  " % (num_warehouse_to_pick + len(self.warehouse_must)))
+        all_combinations = list(itertools.combinations(self.warehouse_pool, num_warehouse_to_pick))
+        min_result = sys.float_info.max
+        min_combo = list()
+        print  ("using enumerating method, with possible combos ", len(all_combinations))
+        for one_combo in all_combinations:
+            tmp_result = self.total_time_cost(self.warehouse_must + list(one_combo))
+            if tmp_result < min_result:
+                min_result = tmp_result
+                min_combo = deepcopy(self.warehouse_must + list(one_combo))
+        print ("min_result is ", min_result, ", ", min_combo)
+        if len(min_combo)==0:
+            print ("no valid combo is found!")
+            sys.exit(0)
+        self.get_combo_detail(min_combo)
+
+    def optimization_main_part(self, wh_num_preset, iter_num_opt):
+        for w in self.warehouse_must:
+            if w not in self.valid_warehouses:
+                print("invalid warehouse_must")
+                sys.exit(0)
+        if wh_num_preset > len(self.warehouse_pool):
+            print ("can only choose ", len(self.warehouse_pool) , " whs, where wh_num_preset is : ", wh_num_preset)
+        else:
+            # warehouse_must has been checked.
+            if wh_num_preset == len(self.warehouse_pool):
+                print ("wh_num_preset == len(self.warehouse_pool)")
+                self.get_combo_detail(self.warehouse_pool)
+            else:
+                num_warehouse_to_pick = wh_num_preset - len(self.warehouse_must)
+                # print "num_warehouse_to_pick ", num_warehouse_to_pick
+                if num_warehouse_to_pick < 0:
+                    print ("warehouse_must.size > wh_num_preset")
+                    sys.exit(0)
+                elif num_warehouse_to_pick == 0:
+                    self.get_combo_detail(self.warehouse_must)
+                else:
+                    # print "wh_num_preset is ", wh_num_preset, '-----------------------'
+                    # print "num_warehouse_to_pick is ", num_warehouse_to_pick
+                    # if num_warehouse_to_pick > 0, remove each warehouse_must from warehouse_pool
+                    # print "self.warehouse_must ", self.warehouse_must
+
+                    for i in self.warehouse_must:
+                        self.warehouse_pool.remove(i)
+                    if num_warehouse_to_pick <= self.num_wh_threshold:
+                        self.enum_method(num_warehouse_to_pick)
+                    else:
+                        print ("using GA ")
+                        ga = GA(aCrossRate=0.7, aMutationRate=0.2, popsize=self.popsize, aGeneLength=wh_num_preset-len(self.warehouse_must), domain=self.warehouse_pool, aMatchFun=self.eval_cand)
+                        self.evolve(wh_num_preset, ga, iter_num_opt)
+        return 0
+
+    def output_all_result(self):
+        out_file = out_dir + 'wh_cost_time.csv'
+        fo = open(out_file, 'w')
+        fo.write(self.all_result_names)
+        for r in range(len(self.all_result)):
+            for q in range(len(self.all_result[r])):
+                if q > 0:
+                    fo.write(',')
+                fo.write(str(self.all_result[r][q]))
+            fo.write('\n')
+        fo.close()
+
+    def run(self):
+		# set the range of warehouse number
+        for i in range(self.num_wh_min, self.num_wh_max+1):
+            start_time = time.time()
+            wh_num_preset = i
+            self.warehouse_pool = deepcopy(self.warehouse_pool_backup)
+            iter_num = self.iter_num_preset
+            self.optimization_main_part(wh_num_preset, iter_num)
+            print ("Execution time: ", time.time()-start_time)
+        # self.output_all_result()
+
+def main():
+    whm = WH_MODEL()
+#    print whm.valid_warehouses
+#    print whm.wh_city_time_cost.head()
+#    print whm.ticket_info.head()
+    whm.run()
+
+    # whm.get_combo_detail([512, 769, 23, 536, 27, 311])
+if __name__ == '__main__':
+    main()
