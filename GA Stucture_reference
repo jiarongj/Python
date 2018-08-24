@@ -1,0 +1,243 @@
+# GA.py
+# -*- coding: utf-8 -*-
+
+import random
+from Life import Life
+
+class GA(object):
+      """遗传算法类"""
+      def __init__(self, aCrossRate, aMutationRage, aLifeCount, aGeneLenght, aMatchFun = lambda life : 1):
+            self.croessRate = aCrossRate
+            self.mutationRate = aMutationRage
+            self.lifeCount = aLifeCount
+            self.geneLenght = aGeneLenght
+            self.matchFun = aMatchFun                 # 适配函数
+            self.lives = []                           # 种群
+            self.best = None                          # 保存这一代中最好的个体
+            self.generation = 1
+            self.crossCount = 0
+            self.mutationCount = 0
+            self.bounds = 0.0                         # 适配值之和，用于选择是计算概率
+
+            self.initPopulation()
+            
+      def initPopulation(self):
+            """初始化种群"""
+            self.lives = []
+            for i in range(self.lifeCount):
+                  gene = [ x for x in range(self.geneLenght) ] 
+                  random.shuffle(gene)
+                  life = Life(gene)
+
+                  self.lives.append(life)
+
+
+      def judge(self):
+            """评估，计算每一个个体的适配值"""
+            self.bounds = 0.0
+            self.best = self.lives[0]
+            for life in self.lives:
+                  life.score = self.matchFun(life)
+                  self.bounds += life.score
+                  if self.best.score < life.score:
+                        self.best = life
+
+
+      def cross(self, parent1, parent2):
+            """交叉"""
+            index1 = random.randint(0, self.geneLenght - 1)
+            index2 = random.randint(index1, self.geneLenght - 1)
+            tempGene = parent2.gene[index1:index2]   # 交叉的基因片段
+            newGene = []
+            p1len = 0
+            for g in parent1.gene:
+                  if p1len == index1:
+                        newGene.extend(tempGene)     # 插入基因片段
+                        p1len += 1
+                  if g not in tempGene:
+                        newGene.append(g)
+                        p1len += 1
+            self.crossCount += 1
+            return newGene
+
+
+      def  mutation(self, gene):
+            """突变"""
+            index1 = random.randint(0, self.geneLenght - 1)
+            index2 = random.randint(0, self.geneLenght - 1)
+
+            newGene = gene[:]       # 产生一个新的基因序列，以免变异的时候影响父种群
+            newGene[index1], newGene[index2] = newGene[index2], newGene[index1]
+            self.mutationCount += 1
+            return newGene
+
+
+      def getOne(self):
+            """选择一个个体"""
+            r = random.uniform(0, self.bounds)
+            for life in self.lives:
+                  r -= life.score
+                  if r <= 0:
+                        return life
+
+            raise Exception("选择错误", self.bounds)
+
+
+      def newChild(self):
+            """产生新后的"""
+            parent1 = self.getOne()
+            rate = random.random()
+
+            # 按概率交叉
+            if rate < self.croessRate:
+                  # 交叉
+                  parent2 = self.getOne()
+                  gene = self.cross(parent1, parent2)
+            else:
+                  gene = parent1.gene
+
+            # 按概率突变
+            rate = random.random()
+            if rate < self.mutationRate:
+                  gene = self.mutation(gene)
+
+            return Life(gene)
+
+
+      def next(self):
+            """产生下一代"""
+            self.judge()
+            newLives = []
+            newLives.append(self.best)            #把最好的个体加入下一代
+            while len(newLives) < self.lifeCount:
+                  newLives.append(self.newChild())
+            self.lives = newLives
+            self.generation += 1
+            # print("gen: %d, mutation: %d, best: %f" % (self.generation, self.mutationCount, self.best.score))
+
+
+
+
+
+# Life.py
+# -*- encoding: utf-8 -*-
+
+
+SCORE_NONE = -1
+
+class Life(object):
+      """个体类"""
+      def __init__(self, aGene = None):
+            self.gene = aGene
+            self.score = SCORE_NONE
+
+
+
+
+
+# TSP_GA.py
+# -*- encoding: utf-8 -*-
+
+import random
+import math
+from GA import GA
+
+class TSP(object):
+      def __init__(self, aLifeCount = 1000,):
+            self.initCitys()
+            self.lifeCount = aLifeCount
+            self.ga = GA(aCrossRate = 0.7,
+                         aMutationRage = 0.02,
+                  aLifeCount = self.lifeCount, 
+                  aGeneLenght = len(self.citys), 
+                  aMatchFun = self.matchFun())
+
+
+      def initCitys(self):
+            self.citys = []
+            """
+            for i in range(34):
+                  x = random.randint(0, 1000)
+                  y = random.randint(0, 1000)
+                  self.citys.append((x, y))
+            """
+
+            #中国34城市经纬度
+            self.citys.append((116.46, 39.92))
+            self.citys.append((117.2,39.13))
+            self.citys.append((121.48, 31.22))
+            self.citys.append((106.54, 29.59))
+            self.citys.append((91.11, 29.97))
+            self.citys.append((87.68, 43.77))
+            self.citys.append((106.27, 38.47))
+            self.citys.append((111.65, 40.82))
+            self.citys.append((108.33, 22.84))
+            self.citys.append((126.63, 45.75))
+            self.citys.append((125.35, 43.88))
+            self.citys.append((123.38, 41.8))
+            self.citys.append((114.48, 38.03))
+            self.citys.append((112.53, 37.87))
+            self.citys.append((101.74, 36.56))
+            self.citys.append((117,36.65))
+            self.citys.append((113.6,34.76))
+            self.citys.append((118.78, 32.04))
+            self.citys.append((117.27, 31.86))
+            self.citys.append((120.19, 30.26))
+            self.citys.append((119.3, 26.08))
+            self.citys.append((115.89, 28.68))
+            self.citys.append((113, 28.21))
+            self.citys.append((114.31, 30.52))
+            self.citys.append((113.23, 23.16))
+            self.citys.append((121.5, 25.05))
+            self.citys.append((110.35, 20.02))
+            self.citys.append((103.73, 36.03))
+            self.citys.append((108.95, 34.27))
+            self.citys.append((104.06, 30.67))
+            self.citys.append((106.71, 26.57))
+            self.citys.append((102.73, 25.04))
+            self.citys.append((114.1, 22.2))
+            self.citys.append((113.33, 22.13))
+
+            
+      def distance(self, order):
+            distance = 0.0
+            for i in range(-1, len(self.citys) - 1):
+                  index1, index2 = order[i], order[i + 1]
+                  city1, city2 = self.citys[index1], self.citys[index2]
+                  distance += math.sqrt((city1[0] - city2[0]) ** 2 + (city1[1] - city2[1]) ** 2)
+
+                  """
+                  R = 6371.004
+                  Pi = math.pi 
+                  LatA = city1[1]
+                  LatB = city2[1]
+                  MLonA = city1[0]
+                  MLonB = city2[0]
+
+                  C = math.sin(LatA*Pi / 180) * math.sin(LatB * Pi / 180) + math.cos(LatA * Pi / 180) * math.cos(LatB * Pi / 180) * math.cos((MLonA - MLonB) * Pi / 180)
+                  D = R * math.acos(C) * Pi / 100
+                  distance += D
+                  """
+            return distance
+
+
+      def matchFun(self):
+            return lambda life: 1.0 / self.distance(life.gene)
+
+
+      def run(self, n = 0):
+            while n > 0:
+                  self.ga.next()
+                  print(self.ga.best.gene)
+                  distance = self.distance(self.ga.best.gene)
+                  print (("%d : %f") % (self.ga.generation, distance))
+                  n -= 1
+
+
+def main():
+      tsp = TSP()
+      tsp.run(1)
+
+
+if __name__ == '__main__':
+      main()
