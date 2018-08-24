@@ -1,0 +1,128 @@
+# -*- encoding: utf-8 -*-
+import random
+import math
+from GA import GA
+import pandas as pd
+import numpy as np
+from random import choice
+
+data_p = pd.read_excel('出库数据.xlsx', sheet_name=2)
+dv = pd.DataFrame(data_p)
+price_info = dv.loc[:, ['始发地', '目的地', '时效', '起始重量', '单票最低运费', '续重价格']]
+price_pool = []
+for i in range(16000):
+    price_pool.append((price_info.loc[i, '始发地'], price_info.loc[i, '目的地'], price_info.loc[i, '时效'], price_info.loc[i, '起始重量'], price_info.loc[i, '单票最低运费'], price_info.loc[i, '续重价格']))
+# print(price_pool)
+data_w = pd.read_excel('出库数据.xlsx', sheet_name=4)
+du = pd.DataFrame(data_w)
+weight_info = du.loc[:, ['始发地代码', '目的地代码', '周均重量']]
+weight_info = weight_info.sort_values(by=['目的地代码'])
+weight_list = weight_info['周均重量'].tolist()
+dest_list = weight_info['目的地代码'].tolist()
+weight_pool = []
+start_list = []
+for i in range(173):
+    weight_pool.append((weight_info.loc[i, '始发地代码'],weight_info.loc[i, '目的地代码'], weight_info.loc[i, '周均重量']))
+    start_list.append(weight_info.loc[i, '始发地代码'])
+    # print(weight_pool)
+start_list = set(start_list)
+print('可选的始发仓为:',start_list)
+
+time_period = 0.00
+sum_price = 0.00
+current_gene = []
+current_combo = []
+for i in weight_pool:  # 在目的地与需求重量列表内遍历
+    time_pool = []
+    for j in price_pool:  # 在所有始发地报价表内寻找可发当前目的地的报价集合
+        if (i[0] == j[1]) and (j[0] in start_list):
+            time_pool.append(j)
+    print(time_pool)
+    rand_item = choice(time_pool)
+    current_gene.append((rand_item))
+    current_combo.append((rand_item[0]))
+    print(rand_item)
+    time_period += rand_item[2]  # 已计提时效加上所选的路段配送时效
+    sum_price += (rand_item[4] + (i[1]-rand_item[3]) * rand_item[5]) if (i[1]>rand_item[3]) else rand_item[4]
+print('现有基因的信息为', current_gene)
+print('该基因组合总价格为：', sum_price)
+print('该基因组合总时效为：', time_period)
+print('现有基因的始发地组合为', current_combo)
+
+
+# 按概率突变
+lives = []
+lives.append(current_combo)
+# def mutation(current_combo):
+rate2 = random.random()
+mutationCount = 0
+if rate2 < 0.02:
+    index1 = random.randint(0, len(current_combo) - 1)
+    index2 = random.randint(0, len(current_combo) - 1)
+    newGene = current_combo[:]    # 产生一个新的基因序列，以免变异的时候影响父种群
+    newGene[index1], newGene[index2] = newGene[index2], newGene[index1]
+    mutationCount += 1
+    print('原来的基因型为：',current_combo,'变异后的基因型为：',newGene)
+    lives.append(newGene)
+    print('lives_Count:',len(lives),'mutation_Count:',mutationCount,'lives:',lives)
+    current_combo = newGene
+
+def getOne():
+    return choice(lives)
+
+# 按概率交叉
+rate1 = random.random()
+if rate1 < 0.7:
+    ano_combo = getOne()
+    index1 = random.randint(0, len(current_combo) - 1)
+    index2 = random.randint(index1, len(current_combo) - 1)
+    print(index1,index2)
+    tempGene = ano_combo[index1:index2]  # 交叉的基因片段
+    print(tempGene)
+    newGene = []
+    p1len = 0
+    crossCount = 0
+    for g in current_combo:
+         if p1len == index1:     #g是元素内容，p1len是该内容位置距原点的长度
+             newGene.extend(tempGene)  # 到达插入点时插入基因片段
+             p1len = index2     #当前位点所在长度
+         if p1len <index1:           #g not in tempGene:
+             newGene.append(g)
+             p1len += 1
+         if p1len == index2:
+             newGene.append(current_combo[index2:])
+             p1len = len(current_combo)
+    crossCount += 1
+    if newGene != current_combo:
+        lives.append(newGene)
+        print('原来的基因型为：',current_combo,'交叉后的基因型为：',newGene)
+        lives.append(newGene)
+    print('lives_Count:',len(lives),'cross_Count:',crossCount,'lives:',lives)
+    current_combo = newGene
+
+
+time_pack = []
+price_pack = []
+for k in lives:
+   current_combo = k
+   time_sum = 0.00
+   price_sum = 0.00
+   best_time = 10000000000000000
+   best_price = 10000000000000000
+   for i in range(173):
+      for j in range(len(price_pool)):
+         if (price_pool[j][0]==current_combo[i]) and (price_pool[j][1]==dest_list[i]):
+              time_sum += price_pool[j][2]
+              price_sum += price_pool[j][4] + price_pool[j][5] * (weight_list[i] - price_pool[j][3]) if weight_list[i] > price_pool[j][3] else price_pool[j][4]
+   if time_sum <best_time:
+       best_time = time_sum
+       best_time_combo = current_combo
+   if price_sum <best_price:
+       best_price = price_sum
+       best_price_combo = current_combo
+   # time_pack.append((time_sum, current_combo))
+   # price_pack.append((price_sum, current_combo))
+print('最优的总时效为：',best_time,'使总时效最优的组合为',best_time_combo)
+print('最优的总价格为：',best_price,'使总价格最优的组合为：',best_price_combo)
+# print('time_pack:',time_pack)
+# print('price_pack:',price_pack)
