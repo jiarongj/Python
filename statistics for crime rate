@@ -1,0 +1,179 @@
+import pandas as pd
+
+pu = pd.read_csv('crime.csv')
+print(pu)
+pv = pd.DataFrame(pu)
+print(pv)
+pv = pv.loc[:,['State']]
+print(pv)
+pt = list(pv.values.tolist())
+print(pt)
+
+
+
+-------------------------------------------------------------------
+Output:
+                   State         ...           Motor vehicle theft
+0                Alabama         ...                         10141
+1                 Alaska         ...                          1739
+2                Arizona         ...                         17587
+3               Arkansas         ...                          5601
+4             California         ...                        151852
+5               Colorado         ...                         12574
+6            Connecticut         ...                          6110
+7               Delaware         ...                          1267
+8   District of Columbia         ...                          3783
+9                Florida         ...                         42579
+10               Georgia         ...                         26854
+11                Hawaii         ...                          3879
+12                 Idaho         ...                          1661
+13              Illinois         ...                         17451
+14               Indiana         ...                         13861
+15                  Iowa         ...                          4151
+16                Kansas         ...                          6906
+17              Kentucky         ...                          6318
+18             Louisiana         ...                          9891
+19                 Maine         ...                           799
+20              Maryland         ...                         13102
+21         Massachusetts         ...                          8260
+22              Michigan         ...                         21157
+23             Minnesota         ...                          8367
+24           Mississippi         ...                          4519
+25              Missouri         ...                         16357
+26               Montana         ...                          2043
+27              Nebraska         ...                          4455
+28                Nevada         ...                         10185
+29         New Hampshire         ...                           857
+30            New Jersey         ...                         11705
+31            New Mexico         ...                          6290
+32              New York         ...                         15736
+33        North Carolina         ...                         13630
+34          North Dakota         ...                          1514
+35                  Ohio         ...                         18015
+36              Oklahoma         ...                         10583
+37                Oregon         ...                          9549
+38          Pennsylvania         ...                         13040
+39          Rhode Island         ...                          1833
+40        South Carolina         ...                         12902
+41          South Dakota         ...                          1007
+42             Tennessee         ...                         12599
+43                 Texas         ...                         68546
+44                  Utah         ...                          7298
+45               Vermont         ...                           244
+46              Virginia         ...                          7665
+47            Washington         ...                         30647
+48         West Virginia         ...                          1896
+49             Wisconsin         ...                          9919
+50               Wyoming         ...                           603
+51   United States-Total         ...                        689527
+
+[52 rows x 11 columns]
+                   State         ...           Motor vehicle theft
+0                Alabama         ...                         10141
+1                 Alaska         ...                          1739
+2                Arizona         ...                         17587
+3               Arkansas         ...                          5601
+4             California         ...                        151852
+5               Colorado         ...                         12574
+6            Connecticut         ...                          6110
+7               Delaware         ...                          1267
+8   District of Columbia         ...                          3783
+9                Florida         ...                         42579
+10               Georgia         ...                         26854
+11                Hawaii         ...                          3879
+12                 Idaho         ...                          1661
+13              Illinois         ...                         17451
+14               Indiana         ...                         13861
+15                  Iowa         ...                          4151
+16                Kansas         ...                          6906
+17              Kentucky         ...                          6318
+18             Louisiana         ...                          9891
+19                 Maine         ...                           799
+20              Maryland         ...                         13102
+21         Massachusetts         ...                          8260
+22              Michigan         ...                         21157
+23             Minnesota         ...                          8367
+24           Mississippi         ...                          4519
+25              Missouri         ...                         16357
+26               Montana         ...                          2043
+27              Nebraska         ...                          4455
+28                Nevada         ...                         10185
+29         New Hampshire         ...                           857
+30            New Jersey         ...                         11705
+31            New Mexico         ...                          6290
+32              New York         ...                         15736
+33        North Carolina         ...                         13630
+34          North Dakota         ...                          1514
+35                  Ohio         ...                         18015
+36              Oklahoma         ...                         10583
+37                Oregon         ...                          9549
+38          Pennsylvania         ...                         13040
+39          Rhode Island         ...                          1833
+40        South Carolina         ...                         12902
+41          South Dakota         ...                          1007
+42             Tennessee         ...                         12599
+43                 Texas         ...                         68546
+44                  Utah         ...                          7298
+45               Vermont         ...                           244
+46              Virginia         ...                          7665
+47            Washington         ...                         30647
+48         West Virginia         ...                          1896
+49             Wisconsin         ...                          9919
+50               Wyoming         ...                           603
+51   United States-Total         ...                        689527
+
+[52 rows x 11 columns]
+                   State
+0                Alabama
+1                 Alaska
+2                Arizona
+3               Arkansas
+4             California
+5               Colorado
+6            Connecticut
+7               Delaware
+8   District of Columbia
+9                Florida
+10               Georgia
+11                Hawaii
+12                 Idaho
+13              Illinois
+14               Indiana
+15                  Iowa
+16                Kansas
+17              Kentucky
+18             Louisiana
+19                 Maine
+20              Maryland
+21         Massachusetts
+22              Michigan
+23             Minnesota
+24           Mississippi
+25              Missouri
+26               Montana
+27              Nebraska
+28                Nevada
+29         New Hampshire
+30            New Jersey
+31            New Mexico
+32              New York
+33        North Carolina
+34          North Dakota
+35                  Ohio
+36              Oklahoma
+37                Oregon
+38          Pennsylvania
+39          Rhode Island
+40        South Carolina
+41          South Dakota
+42             Tennessee
+43                 Texas
+44                  Utah
+45               Vermont
+46              Virginia
+47            Washington
+48         West Virginia
+49             Wisconsin
+50               Wyoming
+51   United States-Total
+[['Alabama'], ['Alaska'], ['Arizona'], ['Arkansas'], ['California'], ['Colorado'], ['Connecticut'], ['Delaware'], ['District of Columbia'], ['Florida'], ['Georgia'], ['Hawaii'], ['Idaho'], ['Illinois'], ['Indiana'], ['Iowa'], ['Kansas'], ['Kentucky'], ['Louisiana'], ['Maine'], ['Maryland'], ['Massachusetts'], ['Michigan'], ['Minnesota'], ['Mississippi'], ['Missouri'], ['Montana'], ['Nebraska'], ['Nevada'], ['New Hampshire'], ['New Jersey'], ['New Mexico'], ['New York'], ['North Carolina'], ['North Dakota'], ['Ohio'], ['Oklahoma'], ['Oregon'], ['Pennsylvania'], ['Rhode Island'], ['South Carolina'], ['South Dakota'], ['Tennessee'], ['Texas'], ['Utah'], ['Vermont'], ['Virginia'], ['Washington'], ['West Virginia'], ['Wisconsin'], ['Wyoming'], ['United States-Total']]
